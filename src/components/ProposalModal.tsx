@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from './ui/Button';
 import { Textarea, Select, Label } from './ui/Input';
 import type { MatchRow, FormaTroca } from '@/lib/types';
@@ -17,6 +18,7 @@ export function ProposalModal({ match, colecaoId, onClose, onSent }: ProposalMod
   const [formaTroca, setFormaTroca] = useState<FormaTroca>('ambos');
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const router = useRouter();
 
   if (!match) return null;
 
@@ -27,24 +29,38 @@ export function ProposalModal({ match, colecaoId, onClose, onSent }: ProposalMod
     try {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Não autenticado');
+      if (!user) throw new Error('Voce precisa estar logado.');
 
-      const { data: proposta, error } = await supabase
+      // Verifica se ja existe conversa com esse usuario
+      const { data: convExistente } = await supabase
+        .from('conversas')
+        .select('id')
+        .or(`participante_a.eq.${user.id},participante_b.eq.${user.id}`)
+        .or(`participante_a.eq.${match.user_b_id},participante_b.eq.${match.user_b_id}`)
+        .limit(1)
+        .maybeSingle();
+
+      if (convExistente) {
+        // Ja existe - redirecionar para conversa existente
+        onSent();
+        onClose();
+        router.push(`/conversas/${convExistente.id}`);
+        return;
+      }
+
+      // Cria proposta
+      const { data: proposta, error: errProposta } = await supabase
         .from('propostas')
         .insert({
           remetente_id: user.id,
           destinatario_id: match.user_b_id,
           colecao_id: colecaoId,
-          oferta: match.a_oferece,
-          pedido: match.b_oferece,
-          status: 'pendente',
-          mensagem,
+          mensagem: mensagem || null,
           forma_troca: formaTroca,
         })
         .select()
         .single();
-
-      if (error) throw error;
+      if (errProposta) throw errProposta;
 
       // Cria conversa associada
       const { data: conversa } = await supabase
@@ -57,27 +73,23 @@ export function ProposalModal({ match, colecaoId, onClose, onSent }: ProposalMod
         .select()
         .single();
 
-      // Mensagem automática de sistema
+      // Mensagem automatica de sistema
       if (conversa) {
         await supabase.from('mensagens').insert({
           conversa_id: conversa.id,
           remetente_id: user.id,
-          conteudo: `Proposta enviada: ${match.trocas_possiveis} trocas mútuas. ${mensagem || ''}`.trim(),
+          conteudo: `Proposta enviada: ${match.trocas_possiveis} trocas mutuas.${mensagem ? ' ' + mensagem : ''}`.trim(),
           tipo: 'sistema',
         });
       }
 
-      // Notificação para o destinatário
-      await supabase.from('notificacoes').insert({
-        user_id: match.user_b_id,
-        tipo: 'nova_proposta',
-        titulo: 'Nova proposta de troca',
-        conteudo: `Você recebeu uma nova proposta de troca com ${match.trocas_possiveis} cromos.`,
-        link: `/conversas/${conversa?.id}`,
-      });
-
       onSent();
       onClose();
+
+      // Redireciona para a conversa criada
+      if (conversa) {
+        router.push(`/conversas/${conversa.id}`);
+      }
     } catch (e: any) {
       setErro(e.message || 'Erro ao enviar proposta.');
     } finally {
@@ -86,68 +98,59 @@ export function ProposalModal({ match, colecaoId, onClose, onSent }: ProposalMod
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <div className="p-6">
-          <h2 className="display text-xl mb-1">Propor troca com {match.user_b_nome}</h2>
-          <p className="text-sm text-gray-600 mb-4">
-            {match.trocas_possiveis} trocas mútuas possíveis
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-bold">Enviar proposta</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-2xl leading-none">&times;</button>
+        </div>
+
+        <div className="mb-4 p-3 bg-green-50 rounded-lg">
+          <p className="text-sm text-green-800">
+            <strong>{match.trocas_possiveis}</strong> troca{match.trocas_possiveis !== 1 ? 's' : ''} poss&iacute;vel com <strong>{match.user_b_nome || 'outro usu&aacute;rio'}</strong>
           </p>
+        </div>
 
-          <div className="grid grid-cols-2 gap-3 mb-5">
-            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3">
-              <div className="text-xs font-medium text-emerald-700 uppercase">Você dá</div>
-              <div className="text-2xl font-bold text-emerald-900 display">{match.a_oferece.length}</div>
-              <div className="text-xs text-emerald-700">cromos</div>
-            </div>
-            <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3">
-              <div className="text-xs font-medium text-yellow-800 uppercase">Você recebe</div>
-              <div className="text-2xl font-bold text-yellow-900 display">{match.b_oferece.length}</div>
-              <div className="text-xs text-yellow-800">cromos</div>
-            </div>
+        <div className="mb-4">
+          <Label htmlFor="formaTroca">Forma de troca</Label>
+          <Select
+            id="formaTroca"
+            value={formaTroca}
+            onChange={(e: any) => setFormaTroca(e.target.value)}
+          >
+            <option value="ambos">Presencial ou Correios</option>
+            <option value="presencial">Presencial</option>
+            <option value="correios">Correios</option>
+          </Select>
+        </div>
+
+        <div className="mb-4">
+          <Label htmlFor="mensagem">Mensagem (opcional)</Label>
+          <Textarea
+            id="mensagem"
+            value={mensagem}
+            onChange={(e: any) => setMensagem(e.target.value)}
+            placeholder="Olá! Vi que temos cromos para trocar..."
+            rows={3}
+            className="resize-none"
+          />
+        </div>
+
+        {erro && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+            {erro}
           </div>
+        )}
 
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="forma_troca">Forma de troca preferida</Label>
-              <Select
-                id="forma_troca"
-                value={formaTroca}
-                onChange={(e) => setFormaTroca(e.target.value as FormaTroca)}
-              >
-                <option value="ambos">Presencial ou envio</option>
-                <option value="presencial">Apenas presencial</option>
-                <option value="envio">Apenas por envio (Correios)</option>
-              </Select>
-            </div>
-            <div>
-              <Label htmlFor="mensagem">Mensagem (opcional)</Label>
-              <Textarea
-                id="mensagem"
-                rows={3}
-                value={mensagem}
-                onChange={(e) => setMensagem(e.target.value)}
-                placeholder="Ex: Olá! Vi seu perfil e queria trocar. Que tal..."
-              />
-            </div>
-          </div>
-
-          {erro && (
-            <div className="mt-3 bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
-              {erro}
-            </div>
-          )}
-
-          <div className="mt-5 flex gap-2 justify-end">
-            <Button variant="secondary" onClick={onClose} disabled={loading}>
-              Cancelar
-            </Button>
-            <Button onClick={enviar} loading={loading}>
-              Enviar proposta
-            </Button>
-          </div>
+        <div className="flex gap-3">
+          <Button onClick={onClose} className="flex-1" disabled={loading}>
+            Cancelar
+          </Button>
+          <Button onClick={enviar} loading={loading} className="flex-1 bg-brand-green text-white">
+            Enviar proposta
+          </Button>
         </div>
       </div>
     </div>
   );
-}
+        }
