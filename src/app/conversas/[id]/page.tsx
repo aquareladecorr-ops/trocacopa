@@ -73,12 +73,36 @@ export default function ConversaPage() {
         .subscribe();
     })();
 
-    return () => { if (channel) channel.unsubscribe(); };
-  }, [conversaId, router]);
-
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [mensagens]);
+    async function enviar() {
+    if (!novaMsg.trim() || !user) return;
+    setEnviando(true);
+    setAviso(null);
+    const fraud = checkAntiFraud(novaMsg);
+    if (fraud.flagged) {
+      setAviso(fraud.warningMessage ?? 'Mensagem sinalizada.');
+    }
+    const supabase = createClient();
+    // Garantir que a sessão está válida antes de enviar
+    const { data: { session }, error: sessErr } = await supabase.auth.getSession();
+    if (sessErr || !session) {
+      setAviso('Sessão expirada. Por favor, faça login novamente.');
+      setEnviando(false);
+      return;
+    }
+    const { error } = await supabase.from('mensagens').insert({
+      conversa_id: conversaId,
+      remetente_id: user.id,
+      conteudo: novaMsg.trim(),
+      tipo: 'texto',
+      flagged_antifraude: fraud.flagged,
+    });
+    if (error) {
+      setAviso('Erro ao enviar: ' + error.message);
+    } else {
+      setNovaMsg('');
+    }
+    setEnviando(false);
+  }
 
   async function enviar() {
     if (!novaMsg.trim() || !user) return;
