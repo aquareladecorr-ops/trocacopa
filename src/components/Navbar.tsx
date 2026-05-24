@@ -99,6 +99,9 @@ export function Navbar({ initialUser, initialProfile }: NavbarProps) {
                       </div>
                     )}
                   </div>
+                  <Link href="/painel" className="block px-4 py-2 hover:bg-ink-100 text-sm">
+                    Painel
+                  </Link>
                   <Link href={`/perfil/${user.id}`} className="block px-4 py-2 hover:bg-ink-100 text-sm">
                     Meu perfil
                   </Link>
