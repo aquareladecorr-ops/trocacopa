@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { Navbar } from '@/components/Navbar';
 import { Disclaimer } from '@/components/Disclaimer';
 import Link from 'next/link';
+import { MessageCircle } from 'lucide-react';
 
 export default async function PainelLayout({ children }: { children: React.ReactNode }) {
   const supabase = createClient();
@@ -38,6 +39,13 @@ export default async function PainelLayout({ children }: { children: React.React
                 {t.l}
               </Link>
             ))}
+            <Link
+              href="/conversas"
+              className="flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 border-transparent hover:border-brand-green hover:text-brand-green whitespace-nowrap transition-colors"
+            >
+              <MessageCircle className="w-4 h-4" />
+              Conversas
+            </Link>
           </div>
         </div>
       </div>
