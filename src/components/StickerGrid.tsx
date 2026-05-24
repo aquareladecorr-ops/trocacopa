@@ -1,5 +1,5 @@
 'use client';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, memo, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { Input } from './ui/Input';
 import type { Figurinha } from '@/lib/types';
@@ -25,23 +25,80 @@ const raridadeColors: Record<string, string> = {
   especial: 'border-blue-500',
 };
 
+interface StickerItemProps {
+  f: Figurinha;
+  mode: 'tenho' | 'preciso';
+  marked: Marked | undefined;
+  onToggle: (id: string, qtd: number) => void;
+  onIncrement?: (id: string) => void;
+  onDecrement?: (id: string) => void;
+}
+
+const StickerItem = memo(function StickerItem({ f, mode, marked, onToggle, onIncrement, onDecrement }: StickerItemProps) {
+  const qtd = marked?.qtd ?? 0;
+  const isActive = qtd > 0;
+  return (
+    <div className="relative group">
+      <button
+        onClick={() => onToggle(f.id, qtd)}
+        className={cn(
+          'sticker-cell relative aspect-square w-full rounded-lg border-2 bg-white text-xs font-bold flex items-center justify-center transition-colors',
+          raridadeColors[f.raridade],
+          isActive && (mode === 'tenho' ? 'active-have' : 'active-need')
+        )}
+        title={f.codigo + (f.nome ? ' - ' + f.nome : '')}
+      >
+        {f.codigo}
+        {mode === 'tenho' && isActive && qtd > 1 && (
+          <span className="absolute -top-1.5 -right-1.5 bg-ink-900 text-white text-[10px] rounded-full h-5 w-5 flex items-center justify-center">
+            {qtd}
+          </span>
+        )}
+      </button>
+      {mode === 'tenho' && isActive && onIncrement && onDecrement && (
+        <div className="absolute inset-x-0 -bottom-3 flex justify-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+          <button
+            onClick={(e) => { e.stopPropagation(); onDecrement(f.id); }}
+            className="bg-white border border-ink-100 rounded text-xs px-1 shadow-sm hover:bg-ink-100"
+          >-</button>
+          <button
+            onClick={(e) => { e.stopPropagation(); onIncrement(f.id); }}
+            className="bg-white border border-ink-100 rounded text-xs px-1 shadow-sm hover:bg-ink-100"
+          >+</button>
+        </div>
+      )}
+    </div>
+  );
+});
+
 export function StickerGrid({ figurinhas, mode, marked, onToggle, onIncrement, onDecrement, onSave, saving, saved }: StickerGridProps) {
   const [filter, setFilter] = useState('');
   const [showOnly, setShowOnly] = useState<'all' | 'marked' | 'unmarked'>('all');
 
-  const filtered = useMemo(() => {
+  const filteredByText = useMemo(() => {
     return figurinhas.filter((f) => {
       if (filter && !f.codigo.toUpperCase().includes(filter.toUpperCase()) && !(f.nome || '').toLowerCase().includes(filter.toLowerCase())) {
         return false;
       }
-      const isMarked = marked[f.id]?.qtd > 0;
+      return true;
+    });
+  }, [figurinhas, filter]);
+
+  const filtered = useMemo(() => {
+    if (showOnly === 'all') return filteredByText;
+    return filteredByText.filter((f) => {
+      const isMarked = (marked[f.id]?.qtd ?? 0) > 0;
       if (showOnly === 'marked' && !isMarked) return false;
       if (showOnly === 'unmarked' && isMarked) return false;
       return true;
     });
-  }, [figurinhas, filter, showOnly, marked]);
+  }, [filteredByText, showOnly, marked]);
 
-  const totalMarked = Object.values(marked).filter((m) => m.qtd > 0).length;
+  const totalMarked = useMemo(() => Object.values(marked).filter((m) => m.qtd > 0).length, [marked]);
+
+  const handleToggle = useCallback((id: string, qtd: number) => onToggle(id, qtd), [onToggle]);
+  const handleIncrement = useCallback((id: string) => onIncrement?.(id), [onIncrement]);
+  const handleDecrement = useCallback((id: string) => onDecrement?.(id), [onDecrement]);
 
   return (
     <div className="space-y-4">
@@ -75,56 +132,25 @@ export function StickerGrid({ figurinhas, mode, marked, onToggle, onIncrement, o
       </div>
 
       <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-1.5">
-        {filtered.map((f) => {
-          const m = marked[f.id];
-          const isActive = (m?.qtd ?? 0) > 0;
-          return (
-            <div key={f.id} className="relative group">
-              <button
-                onClick={() => onToggle(f.id, m?.qtd ?? 0)}
-                className={cn(
-                  'sticker-cell relative aspect-square w-full rounded-lg border-2 bg-white text-xs font-bold flex items-center justify-center transition-colors',
-                  raridadeColors[f.raridade],
-                  isActive && (mode === 'tenho' ? 'active-have' : 'active-need')
-                )}
-                title={f.codigo + (f.nome ? ' - ' + f.nome : '')}
-              >
-                {f.codigo}
-                {mode === 'tenho' && isActive && m.qtd > 1 && (
-                  <span className="absolute -top-1.5 -right-1.5 bg-ink-900 text-white text-[10px] rounded-full h-5 w-5 flex items-center justify-center">
-                    {m.qtd}
-                  </span>
-                )}
-              </button>
-              {mode === 'tenho' && isActive && onIncrement && onDecrement && (
-                <div className="absolute inset-x-0 -bottom-3 flex justify-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                  <button
-                    onClick={(e) => { e.stopPropagation(); onDecrement(f.id); }}
-                    className="bg-white border border-ink-100 rounded text-xs px-1 shadow-sm hover:bg-ink-100"
-                  >-</button>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); onIncrement(f.id); }}
-                    className="bg-white border border-ink-100 rounded text-xs px-1 shadow-sm hover:bg-ink-100"
-                  >+</button>
-                </div>
-              )}
-            </div>
-          );
-        })}
+        {filtered.map((f) => (
+          <StickerItem
+            key={f.id}
+            f={f}
+            mode={mode}
+            marked={marked[f.id]}
+            onToggle={handleToggle}
+            onIncrement={handleIncrement}
+            onDecrement={handleDecrement}
+          />
+        ))}
       </div>
 
-      {filtered.length === 0 && (
-        <div className="text-center py-8 text-gray-500 text-sm">
-          Nenhuma figurinha encontrada com esse filtro.
-        </div>
-      )}
-
-      <div className="flex flex-wrap items-center justify-between gap-4 pt-2">
-        <div className="text-xs text-gray-500 flex gap-4 flex-wrap">
-          <span><span className="inline-block w-3 h-3 bg-gray-300 rounded mr-1 align-middle"></span>Comum</span>
-          <span><span className="inline-block w-3 h-3 border-2 border-yellow-400 rounded mr-1 align-middle"></span>Rara</span>
-          <span><span className="inline-block w-3 h-3 border-2 border-blue-500 rounded mr-1 align-middle"></span>Especial</span>
-          <span><span className="inline-block w-3 h-3 border-2 border-purple-500 rounded mr-1 align-middle"></span>Legend</span>
+      <div className="flex items-center justify-between pt-2">
+        <div className="flex gap-4 text-xs text-gray-500">
+          <span><span className="inline-block w-2 h-2 bg-gray-200 rounded mr-1 align-middle"></span>Comum</span>
+          <span><span className="inline-block w-2 h-2 bg-yellow-400 rounded mr-1 align-middle"></span>Rara</span>
+          <span><span className="inline-block w-2 h-2 bg-blue-500 rounded mr-1 align-middle"></span>Especial</span>
+          <span><span className="inline-block w-2 h-2 bg-purple-500 rounded mr-1 align-middle"></span>Legend</span>
         </div>
 
         {onSave && (
@@ -146,4 +172,4 @@ export function StickerGrid({ figurinhas, mode, marked, onToggle, onIncrement, o
       </div>
     </div>
   );
-              }
+                                                                      }
