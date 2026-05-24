@@ -148,3 +148,25 @@ ALTER TABLE public.conversas ADD COLUMN IF NOT EXISTS ultima_msg_preview TEXT;
 
 **Colunas da tabela conversas apos fix:**
 id, participante_a, participante_b, acordo_id, ultima_msg_em, arquivada, criado_em, ultima_msg_preview
+
+
+---
+
+## Sessão 6 — Bugfix: Envio de mensagem (token expirado / auto-refresh)
+
+**Data:** 24/05/2026
+
+**Problema:** Campo de mensagem limpava ao clicar "Enviar" mas a mensagem não era salva no banco nem aparecia no chat. Sem mensagem de erro visível.
+
+**Causa raiz:**
+- O Supabase client era recriado a cada chamada de `createClient()`, impedindo o auto-refresh do token.
+- O token JWT expirava após 1h e o cliente recriado usava o token expirado do cookie.
+- O Supabase PostgREST retorna HTTP 201 mesmo quando o RLS bloqueia o insert (falha silenciosa).
+
+**Fixes aplicados:**
+1. `src/lib/supabase/client.ts` (commit `fa6a021`): Transformado em singleton para garantir auto-refresh de token funcionar corretamente.
+2. `src/app/conversas/[id]/page.tsx` (commit `f5d8166`): Adicionado `supabase.auth.getSession()` antes do insert para validar/renovar sessão. Erros explícitos quando sessão expirada.
+
+**Resultado:** Chat de mensagens funcionando — envio, realtime e listagem de conversas OK.
+
+**Commits:** fa6a021 (client singleton) | f5d8166 (page.tsx session validation)
