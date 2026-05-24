@@ -170,3 +170,24 @@ id, participante_a, participante_b, acordo_id, ultima_msg_em, arquivada, criado_
 **Resultado:** Chat de mensagens funcionando — envio, realtime e listagem de conversas OK.
 
 **Commits:** fa6a021 (client singleton) | f5d8166 (page.tsx session validation)
+
+
+---
+
+## Sessão 7 — Bugfix: Propor troca retornando erro 400
+
+**Data:** 24/05/2026
+
+**Problema:** Clicar em "Propor troca" no Matches retornava erro "null value in column \"oferta\" of relation \"propostas\" violates not-null constraint". Na rede, aparecia erro HTTP 400.
+
+**Causa raiz:**
+- A tabela `propostas` tem `oferta` e `pedido` como `jsonb NOT NULL`.
+- O `ProposalModal.tsx` fazia insert sem esses campos.
+- O MatchRow já contém `a_oferece` (figurinhas que o usuário oferece) e `b_oferece` (figurinhas que o outro oferece).
+
+**Fix aplicado:**
+- `src/components/ProposalModal.tsx` (commit `5839eed`): Adicionado `oferta: match.a_oferece` e `pedido: match.b_oferece` no insert da proposta.
+
+**Resultado:** Proposta criada com sucesso — status "pendente", forma_troca "ambos", oferta e pedido com arrays de figurinhas JSON.
+
+**Commit:** 5839eed
