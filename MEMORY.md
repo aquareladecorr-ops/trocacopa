@@ -96,3 +96,40 @@ Plataforma de troca de figurinhas/cromos. Usuários cadastram suas figurinhas re
 - Configurar variáveis MERCADOPAGO_* no Vercel
 - Testar OAuth Google no fluxo completo
 - Testar criação de conversa e envio de mensagens com dois usuários
+
+
+## Sessao 4 — 2026-05-24 (correcao bugs salvar + menu painel + performance)
+
+### Bugs corrigidos
+
+**Bug 1: Menu dropdown nao tinha "Painel"**
+- Arquivo: src/components/Navbar.tsx
+- Fix: adicionado link Painel no dropdown
+- Commit: 9a1fcf9
+
+**Bug 2: Variaveis de ambiente no Vercel estavam erradas**
+- NEXT_PUBLIC_SUPABASE_URL estava vazio — setado para https://clhuuqcbbuunxeeidims.supabase.co
+- NEXT_PUBLIC_SUPABASE_ANON_KEY tinha valor "a" (um char) — setado para a chave correta
+- SUPABASE_SERVICE_ROLE_KEY estava vazio — setado para a chave correta
+- Deploy JBAyY1cgf recriado com as env vars corretas
+
+**Bug 3: Usuario jose nao existia em public.usuarios**
+- FK violation em repetidas_user_id_fkey
+- Usuario existia em auth.users mas nao em public.usuarios
+- Fix: INSERT do usuario em public.usuarios
+- Fix: criado trigger on_auth_user_created para auto-criar registro em usuarios no signup
+
+**Bug 4: JWT expirado**
+- Access token do usuario estava expirado
+- Fix: refreshed manualmente via /auth/v1/token
+
+**Bug 5: Performance — StickerGrid travando com 980 items**
+- Re-render de 980 items a cada clique por falta de memoizacao
+- Fix: adicionado React.memo no StickerItem + useCallback para handlers + separacao do useMemo de texto e marcacao
+- Arquivo: src/components/StickerGrid.tsx
+- Commit: 1b3bb24
+
+### Tabelas importantes
+- repetidas: colunas sao user_id, figurinha_id, quantidade, reservada_para, atualizado_em (NAO tem created_at)
+- faltantes: similar ao repetidas
+- usuarios: colunas NOT NULL = nome, email, cidade, estado
