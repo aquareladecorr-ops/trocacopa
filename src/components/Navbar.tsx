@@ -1,6 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
+import { MessageCircle } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { Avatar } from './ui/Card';
 import { Button } from './ui/Button';
@@ -16,10 +17,10 @@ export function Navbar({ initialUser, initialProfile }: NavbarProps) {
   const [profile, setProfile] = useState(initialProfile ?? null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [notifs, setNotifs] = useState(0);
+  const [unreadMsgs, setUnreadMsgs] = useState(0);
 
   useEffect(() => {
     const supabase = createClient();
-
     const fetchUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       setUser(user);
@@ -30,16 +31,52 @@ export function Navbar({ initialUser, initialProfile }: NavbarProps) {
           .eq('id', user.id)
           .single();
         if (data) setProfile(data);
-        const { count } = await supabase
+
+        // Notificações gerais
+        const { count: notifCount } = await supabase
           .from('notificacoes')
           .select('*', { count: 'exact', head: true })
           .eq('user_id', user.id)
           .eq('lida', false);
-        setNotifs(count ?? 0);
+        setNotifs(notifCount ?? 0);
+
+        // Mensagens não lidas (onde o user é participante mas não remetente)
+        const { data: convs } = await supabase
+          .from('conversas')
+          .select('id')
+          .or(`participante_a.eq.${user.id},participante_b.eq.${user.id}`);
+        if (convs && convs.length > 0) {
+          const convIds = convs.map((c: any) => c.id);
+          const { count: msgCount } = await supabase
+            .from('mensagens')
+            .select('*', { count: 'exact', head: true })
+            .in('conversa_id', convIds)
+            .neq('remetente_id', user.id)
+            .is('lida_em', null);
+          setUnreadMsgs(msgCount ?? 0);
+        }
       }
     };
-
     if (!initialUser) fetchUser();
+    else if (initialUser) {
+      // Still fetch unread counts for logged-in users passed as props
+      (async () => {
+        const { data: convs } = await supabase
+          .from('conversas')
+          .select('id')
+          .or(`participante_a.eq.${initialUser.id},participante_b.eq.${initialUser.id}`);
+        if (convs && convs.length > 0) {
+          const convIds = convs.map((c: any) => c.id);
+          const { count: msgCount } = await supabase
+            .from('mensagens')
+            .select('*', { count: 'exact', head: true })
+            .in('conversa_id', convIds)
+            .neq('remetente_id', initialUser.id)
+            .is('lida_em', null);
+          setUnreadMsgs(msgCount ?? 0);
+        }
+      })();
+    }
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
@@ -67,12 +104,21 @@ export function Navbar({ initialUser, initialProfile }: NavbarProps) {
         <div className="hidden md:flex items-center gap-1 text-sm">
           <Link href="/painel" className="px-3 py-2 hover:bg-ink-100 rounded-lg">Painel</Link>
           <Link href="/painel/matches" className="px-3 py-2 hover:bg-ink-100 rounded-lg">Matches</Link>
-          <Link href="/conversas" className="px-3 py-2 hover:bg-ink-100 rounded-lg">Conversas</Link>
           <Link href="/eventos" className="px-3 py-2 hover:bg-ink-100 rounded-lg">Eventos</Link>
           <Link href="/premium" className="px-3 py-2 hover:bg-ink-100 rounded-lg text-brand-green font-semibold">Premium</Link>
         </div>
 
         <div className="flex items-center gap-2">
+          {user && (
+            <Link href="/conversas" className="relative p-2 hover:bg-ink-100 rounded-lg transition-colors" title="Conversas">
+              <MessageCircle className="w-5 h-5 text-ink-900" />
+              {unreadMsgs > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 bg-brand-green text-white text-[10px] rounded-full h-4 w-4 flex items-center justify-center font-semibold">
+                  {unreadMsgs > 9 ? '9+' : unreadMsgs}
+                </span>
+              )}
+            </Link>
+          )}
           {user ? (
             <div className="relative">
               <button
@@ -101,6 +147,15 @@ export function Navbar({ initialUser, initialProfile }: NavbarProps) {
                   </div>
                   <Link href="/painel" className="block px-4 py-2 hover:bg-ink-100 text-sm">
                     Painel
+                  </Link>
+                  <Link href="/conversas" className="flex items-center gap-2 px-4 py-2 hover:bg-ink-100 text-sm">
+                    <MessageCircle className="w-4 h-4" />
+                    Conversas
+                    {unreadMsgs > 0 && (
+                      <span className="ml-auto bg-brand-green text-white text-[10px] rounded-full h-4 w-4 flex items-center justify-center font-semibold">
+                        {unreadMsgs > 9 ? '9+' : unreadMsgs}
+                      </span>
+                    )}
                   </Link>
                   <Link href={`/perfil/${user.id}`} className="block px-4 py-2 hover:bg-ink-100 text-sm">
                     Meu perfil
@@ -134,4 +189,4 @@ export function Navbar({ initialUser, initialProfile }: NavbarProps) {
       </div>
     </nav>
   );
-}
+  }
