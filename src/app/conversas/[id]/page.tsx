@@ -17,7 +17,6 @@ export default function ConversaPage() {
   const params = useParams();
   const router = useRouter();
   const conversaId = params.id as string;
-
   const [user, setUser] = useState<User | null>(null);
   const [other, setOther] = useState<{ id: string; nome: string; foto_url: string | null; verificado: boolean; reputacao: number } | null>(null);
   const [mensagens, setMensagens] = useState<Mensagem[]>([]);
@@ -25,6 +24,17 @@ export default function ConversaPage() {
   const [enviando, setEnviando] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  // Mark messages as read
+  async function marcarLidas(userId: string) {
+    const supabase = createClient();
+    await supabase
+      .from('mensagens')
+      .update({ lida_em: new Date().toISOString() })
+      .eq('conversa_id', conversaId)
+      .neq('remetente_id', userId)
+      .is('lida_em', null);
+  }
 
   useEffect(() => {
     const supabase = createClient();
@@ -57,6 +67,9 @@ export default function ConversaPage() {
         .order('criado_em');
       setMensagens(msgs ?? []);
 
+      // Mark incoming messages as read
+      await marcarLidas(u.id);
+
       channel = supabase
         .channel(`conv:${conversaId}`)
         .on('postgres_changes', {
@@ -64,11 +77,15 @@ export default function ConversaPage() {
           schema: 'public',
           table: 'mensagens',
           filter: `conversa_id=eq.${conversaId}`,
-        }, (payload) => {
+        }, async (payload) => {
           setMensagens((prev) => {
             if (prev.some((m) => m.id === (payload.new as any).id)) return prev;
             return [...prev, payload.new as Mensagem];
           });
+          // Auto-mark as read if message is from the other person
+          if ((payload.new as any).remetente_id !== u.id) {
+            await marcarLidas(u.id);
+          }
         })
         .subscribe();
     })();
@@ -79,8 +96,6 @@ export default function ConversaPage() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [mensagens]);
-
-
 
   async function enviar() {
     if (!novaMsg.trim() || !user) return;
@@ -112,6 +127,7 @@ export default function ConversaPage() {
     }
     setEnviando(false);
   }
+
   return (
     <>
       <Navbar initialUser={user} />
@@ -154,7 +170,10 @@ export default function ConversaPage() {
                 );
               }
               return (
-                <div key={m.id} className={cn('flex', isMine ? 'justify-end' : 'justify-start')}>
+                <div key={m.id} className={cn('flex items-end gap-2', isMine ? 'justify-end' : 'justify-start')}>
+                  {!isMine && other && (
+                    <Avatar name={other.nome} src={other.foto_url} size="sm" />
+                  )}
                   <div className={cn(
                     'max-w-[75%] rounded-2xl px-4 py-2.5 text-sm',
                     isMine ? 'bg-brand-green text-white' : 'bg-white border border-ink-100'
@@ -165,8 +184,14 @@ export default function ConversaPage() {
                     <div>{m.conteudo}</div>
                     <div className={cn('text-[10px] mt-1', isMine ? 'text-white/70' : 'text-gray-400')}>
                       {formatRelativeDate(m.criado_em)}
+                      {isMine && m.lida_em && (
+                        <span className="ml-1 opacity-80">✓✓</span>
+                      )}
                     </div>
                   </div>
+                  {isMine && user && (
+                    <Avatar name={user.email || 'U'} src={null} size="sm" />
+                  )}
                 </div>
               );
             })
@@ -187,7 +212,12 @@ export default function ConversaPage() {
             <Textarea
               value={novaMsg}
               onChange={(e) => setNovaMsg(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviar(); } }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  enviar();
+                }
+              }}
               rows={1}
               placeholder="Mensagem..."
               className="resize-none"
@@ -204,4 +234,4 @@ export default function ConversaPage() {
       <Disclaimer />
     </>
   );
-}
+            }
