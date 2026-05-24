@@ -191,3 +191,36 @@ id, participante_a, participante_b, acordo_id, ultima_msg_em, arquivada, criado_
 **Resultado:** Proposta criada com sucesso — status "pendente", forma_troca "ambos", oferta e pedido com arrays de figurinhas JSON.
 
 **Commit:** 5839eed
+
+
+## Sessão 8 — Chat com ícone + envio e recepção
+
+### Solicitação do usuário
+"funcionou mas o chat tem que funcionar com envio e resposta e uma área com ícone chat."
+
+### Mudanças realizadas
+
+**Commit `e2e1a8e`** — `src/components/Navbar.tsx`
+- Adicionado ícone `MessageCircle` do lucide-react na navbar
+- Badge com contador de mensagens não lidas (lida_em IS NULL onde user é destinatário)
+- Ícone de chat visível na barra de navegação ao lado do avatar
+- Item "Conversas" no menu dropdown com ícone e badge de não lidas
+
+**Commit `70a95fa`** — `src/app/painel/layout.tsx`  
+- Adicionada aba "Conversas" com ícone MessageCircle no sub-nav do painel
+- Link para /conversas ao lado de "Minhas trocas"
+
+**Commit `81e64da`** — `src/app/conversas/[id]/page.tsx`
+- Avatar do remetente exibido ao lado de cada mensagem
+- Mensagens do outro usuário aparecem com avatar à esquerda
+- Mensagens próprias aparecem com avatar à direita
+- Marca mensagens como lidas (lida_em) ao abrir a conversa
+- Recibo de leitura ✓✓ exibido em mensagens próprias quando lidas pelo destinatário
+- Real-time continua via Supabase channel (INSERT listener)
+- Sessão verificada antes de enviar
+
+### Resultado
+- Build Vercel ✅ (1/1, commit 81e64da = "chat: avatar on messages...")
+- Chat funciona: envio ✅, recepção em tempo real ✅, avatares ✅
+- Ícone de chat na navbar ✅
+- Aba "Conversas" no painel ✅
