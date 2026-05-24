@@ -55,6 +55,8 @@ export function ProposalModal({ match, colecaoId, onClose, onSent }: ProposalMod
           remetente_id: user.id,
           destinatario_id: match.user_b_id,
           colecao_id: colecaoId,
+          oferta: match.a_oferece,
+          pedido: match.b_oferece,
           mensagem: mensagem || null,
           forma_troca: formaTroca,
         })
