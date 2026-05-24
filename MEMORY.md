@@ -133,3 +133,18 @@ Plataforma de troca de figurinhas/cromos. Usuários cadastram suas figurinhas re
 - repetidas: colunas sao user_id, figurinha_id, quantidade, reservada_para, atualizado_em (NAO tem created_at)
 - faltantes: similar ao repetidas
 - usuarios: colunas NOT NULL = nome, email, cidade, estado
+
+
+## Sessao 5 — 2026-05-24 (correcao enviar mensagem no chat)
+
+### Bug: Enviar mensagem no chat nao funcionava
+
+**Erro:** column "ultima_msg_preview" of relation "conversas" does not exist
+
+**Causa raiz:** Triggers na tabela mensagens chamavam fn_atualiza_conversa_ultima_msg() que tentava atualizar coluna inexistente na tabela conversas.
+
+**Fix aplicado no Supabase:**
+ALTER TABLE public.conversas ADD COLUMN IF NOT EXISTS ultima_msg_preview TEXT;
+
+**Colunas da tabela conversas apos fix:**
+id, participante_a, participante_b, acordo_id, ultima_msg_em, arquivada, criado_em, ultima_msg_preview
