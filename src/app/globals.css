@@ -1,0 +1,35 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Archivo+Black&display=swap');
+
+:root {
+  --color-bg: #f7f8fa;
+  --color-ink: #0d1117;
+  --color-brand-green: #009C3B;
+  --color-brand-yellow: #FFDF00;
+}
+
+html, body { background: var(--color-bg); color: var(--color-ink); }
+
+body { font-family: 'Inter', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+
+h1, h2, h3, .display { font-family: 'Archivo Black', system-ui, sans-serif; letter-spacing: -0.02em; }
+
+/* Sticker hover effect */
+.sticker-cell {
+  transition: transform .12s ease, box-shadow .12s ease, background .12s;
+}
+.sticker-cell:hover { transform: translateY(-2px); }
+.sticker-cell.active-have   { background: #009C3B; color: white; box-shadow: 2px 2px 0 0 rgba(0,0,0,0.2); }
+.sticker-cell.active-need   { background: #FFDF00; color: #0d1117; box-shadow: 2px 2px 0 0 rgba(0,0,0,0.2); }
+.sticker-cell.rare-comum    {}
+.sticker-cell.rare-rara     { border-color: #d4a017; }
+.sticker-cell.rare-legend   { border-color: #c026d3; }
+.sticker-cell.rare-especial { border-color: #2563eb; }
+
+/* Scrollbar refinada */
+.scrollbar-thin::-webkit-scrollbar { width: 6px; height: 6px; }
+.scrollbar-thin::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+.scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
