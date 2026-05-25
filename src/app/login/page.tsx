@@ -89,6 +89,12 @@ export default function LoginPage() {
                 <Input id="senha" type="password" required value={senha} onChange={(e) => setSenha(e.target.value)} />
               </div>
 
+              <div className="text-right">
+                <Link href="/recuperar-senha" className="text-sm text-brand-green hover:underline">
+                  Esqueci minha senha
+                </Link>
+              </div>
+
               {erro && (
                 <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">{erro}</div>
               )}
