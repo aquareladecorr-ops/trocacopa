@@ -95,7 +95,7 @@ export default function MatchesPage() {
         <div className="flex flex-wrap items-center gap-2">
           <Button
             size="sm"
-            variant={mesmaCidadeOnly ? 'primary' : 'outline'}
+            variant={mesmaCidadeOnly ? 'primary' : 'ghost'}
             onClick={() => setMesmaCidadeOnly((v) => !v)}
           >
             📍 Só minha cidade
@@ -175,7 +175,7 @@ export default function MatchesPage() {
           </p>
           {!cidadeFiltro && (
             <div className="flex gap-3 justify-center">
-              <Button variant="outline" onClick={() => router.push('/painel/tenho')}>Cadastrar repetidas</Button>
+              <Button variant="ghost" onClick={() => router.push('/painel/tenho')}>Cadastrar repetidas</Button>
               <Button onClick={() => router.push('/painel/preciso')}>Cadastrar faltantes</Button>
             </div>
           )}
