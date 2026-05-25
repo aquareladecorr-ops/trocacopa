@@ -1,132 +1,139 @@
+'use client';
+
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
 import { Navbar } from '@/components/Navbar';
 import { Disclaimer } from '@/components/Disclaimer';
-import { createClient } from '@/lib/supabase/server';
 
-export default async function HomePage() {
-  const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+// Static demo sticker data: 1=have, 2=duplicate, 0=missing
+const DEMO_STICKERS: Record<number, 0 | 1 | 2> = {
+  1:0, 2:1, 3:1, 4:0, 5:1, 6:1, 7:0, 8:2, 9:1, 10:0,
+  11:1, 12:1, 13:0, 14:1, 15:2, 16:0, 17:1, 18:1, 19:0, 20:1,
+  21:1, 22:0, 23:1, 24:1, 25:0, 26:1, 27:1, 28:0, 29:2, 30:1,
+  31:0, 32:1, 33:1, 34:0, 35:1, 36:2, 37:0, 38:1, 39:1, 40:0,
+  41:1, 42:0, 43:1, 44:1, 45:1, 46:0, 47:2, 48:1, 49:0, 50:2,
+  51:1, 52:0, 53:1, 54:1, 55:0, 56:1, 57:2, 58:0, 59:1, 60:1,
+};
 
-  const { count: totalUsuarios } = await supabase
-    .from('usuarios')
-    .select('*', { count: 'exact', head: true });
+const TOTAL = 670;
+const TENHO = Object.values(DEMO_STICKERS).filter(v => v >= 1).length;
 
-  const { data: colecoes } = await supabase
-    .from('colecoes')
-    .select('*')
-    .eq('ativa', true)
-    .order('criado_em', { ascending: false });
+function StickerGrid() {
+  return (
+    <div className="bg-white rounded-2xl shadow-lg p-5 w-full max-w-md">
+      <div className="flex justify-between items-center mb-4">
+        <span className="font-semibold text-gray-800 text-sm">Sua coleção</span>
+        <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full font-medium">
+          {TENHO + 363} / {TOTAL}
+        </span>
+      </div>
+      <div className="grid grid-cols-10 gap-1">
+        {Array.from({ length: 60 }, (_, i) => i + 1).map((n) => {
+          const estado = DEMO_STICKERS[n] ?? 0;
+          const bg =
+            estado === 2
+              ? 'bg-yellow-400 text-white'
+              : estado === 1
+              ? 'bg-green-600 text-white'
+              : 'bg-gray-100 text-gray-400';
+          return (
+            <div
+              key={n}
+              className={`${bg} rounded-lg text-[10px] font-bold flex items-center justify-center aspect-square select-none`}
+            >
+              {n}
+            </div>
+          );
+        })}
+      </div>
+      <div className="flex items-center gap-4 mt-4 text-xs text-gray-500">
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-green-600 inline-block"></span>Tenho</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-yellow-400 inline-block"></span>Repetida</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-gray-200 inline-block"></span>Falta</span>
+      </div>
+    </div>
+  );
+}
 
+export default function HomePage() {
   return (
     <>
-      <Navbar initialUser={user} />
+      <Navbar initialUser={null} />
 
       {/* HERO */}
-      <section className="bg-gradient-to-br from-brand-green via-brand-green to-brand-green-dark text-white overflow-hidden relative">
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute top-20 left-10 text-9xl display rotate-12">⚽</div>
-          <div className="absolute bottom-10 right-20 text-9xl display -rotate-12">🏆</div>
-        </div>
-        <div className="max-w-6xl mx-auto px-4 py-20 md:py-28 relative">
-          <div className="bg-brand-yellow text-ink-900 inline-block px-3 py-1 rounded-full text-xs font-bold mb-5">
-            COMUNIDADE INDEPENDENTE · MUNDIAL 2026
-          </div>
-          <h1 className="display text-4xl md:text-6xl lg:text-7xl leading-[1.05] mb-6 max-w-3xl">
-            Pare de gastar com pacotes.
-            <br />
-            <span className="text-brand-yellow">Troque com quem tem o que falta.</span>
-          </h1>
-          <p className="text-lg md:text-xl text-white/90 max-w-2xl mb-8">
-            A maior comunidade independente de colecionadores do Brasil. Cadastre suas repetidas e
-            faltantes — a gente encontra automaticamente quem mora perto e tem exatamente o que
-            você precisa.
-          </p>
-          <div className="flex flex-wrap gap-3">
-            <Link
-              href="/signup"
-              className="bg-brand-yellow text-ink-900 px-6 py-3.5 rounded-xl font-bold hover:scale-105 transition-transform shadow-stamp"
-            >
-              Quero completar meu álbum — é grátis
-            </Link>
-            <Link
-              href="/login"
-              className="bg-white/10 backdrop-blur border-2 border-white/30 text-white px-6 py-3.5 rounded-xl font-semibold hover:bg-white/20"
-            >
-              Já tenho conta
-            </Link>
-          </div>
-          <div className="mt-10 flex items-center gap-6 text-sm text-white/80">
-            <div>
-              <span className="display text-3xl text-brand-yellow">{(totalUsuarios ?? 0).toLocaleString('pt-BR')}+</span>
-              <div>colecionadores</div>
+      <section className="bg-white py-16 px-4 md:px-8">
+        <div className="max-w-6xl mx-auto grid md:grid-cols-2 gap-12 items-center">
+          {/* Left: text */}
+          <div>
+            <div className="inline-flex items-center gap-2 bg-yellow-400 text-gray-900 text-xs font-bold px-3 py-1.5 rounded-full mb-6">
+              <span>✦</span> Comunidade brasileira de colecionadores
             </div>
-            <div className="h-10 w-px bg-white/30"></div>
-            <div>
-              <span className="display text-3xl text-brand-yellow">{colecoes?.length ?? 0}</span>
-              <div>coleções ativas</div>
+            <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-gray-900 leading-tight mb-6">
+              Pare de gastar com pacotes.{' '}
+              <span className="text-green-600">Troque com quem tem o que falta.</span>
+            </h1>
+            <p className="text-gray-500 text-base md:text-lg mb-8 max-w-md">
+              Marque suas repetidas e faltantes, encontre matches perto de você e combine trocas direto no chat. Tudo grátis para começar.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <Link
+                href="/signup"
+                className="bg-green-600 hover:bg-green-700 text-white font-bold px-6 py-3 rounded-xl transition-colors shadow-sm"
+              >
+                Começar grátis
+              </Link>
+              <Link
+                href="/login"
+                className="border-2 border-gray-300 hover:border-gray-400 text-gray-700 font-semibold px-6 py-3 rounded-xl transition-colors"
+              >
+                Já tenho conta
+              </Link>
             </div>
+          </div>
+
+          {/* Right: sticker grid demo */}
+          <div className="flex justify-center md:justify-end">
+            <StickerGrid />
           </div>
         </div>
       </section>
 
       {/* COMO FUNCIONA */}
-      <section className="py-20 px-4">
+      <section className="py-20 px-4 bg-gray-50">
         <div className="max-w-6xl mx-auto">
-          <h2 className="display text-3xl md:text-5xl text-center mb-3">Como funciona</h2>
-          <p className="text-center text-gray-600 mb-12">3 passos para fechar seu álbum sem gastar mais nada.</p>
-
+          <h2 className="text-3xl md:text-4xl font-extrabold text-center mb-3 text-gray-900">Como funciona</h2>
+          <p className="text-center text-gray-500 mb-12">3 passos para fechar seu álbum sem gastar mais nada.</p>
           <div className="grid md:grid-cols-3 gap-6">
             {[
               { n: '01', t: 'Cadastre em 5 minutos', d: 'Toque nos números das suas repetidas e das que faltam. Por foto, lista numérica ou grade visual.' },
               { n: '02', t: 'A gente acha quem combina', d: 'Match automático na sua cidade e bairro. Você só vê quem tem o que você precisa — e precisa do que você tem.' },
               { n: '03', t: 'Converse, combine e troque', d: 'Pelo chat seguro com antifraude, avaliação pós-troca e seguro de envio opcional.' },
             ].map((s) => (
-              <div key={s.n} className="bg-white rounded-2xl p-6 border-2 border-ink-100 hover:border-brand-green transition-colors">
-                <div className="display text-5xl text-brand-yellow mb-3">{s.n}</div>
-                <h3 className="display text-xl mb-2">{s.t}</h3>
-                <p className="text-gray-600 text-sm leading-relaxed">{s.d}</p>
+              <div key={s.n} className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm hover:border-green-500 transition-colors">
+                <div className="text-4xl font-extrabold text-yellow-400 mb-3">{s.n}</div>
+                <h3 className="text-lg font-bold mb-2 text-gray-900">{s.t}</h3>
+                <p className="text-gray-500 text-sm leading-relaxed">{s.d}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* COLEÇÕES */}
-      <section className="py-16 px-4 bg-ink-100">
-        <div className="max-w-6xl mx-auto">
-          <h2 className="display text-3xl md:text-4xl mb-2">Não é só Mundial.</h2>
-          <p className="text-gray-600 mb-8">Brasileirão, TCGs, álbuns infantis. Uma plataforma, todas as coleções.</p>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {colecoes?.map((c) => (
-              <Link
-                key={c.id}
-                href={`/colecao/${c.slug}`}
-                className="bg-white rounded-xl p-5 border-2 border-ink-100 hover:border-brand-green transition-colors"
-              >
-                <div className="text-xs uppercase text-gray-500 tracking-wide">{c.categoria}</div>
-                <div className="display text-lg mt-1">{c.nome}</div>
-                <div className="text-sm text-gray-500 mt-1">{c.total_figurinhas} cromos</div>
-              </Link>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* PROVA SOCIAL */}
-      <section className="py-20 px-4">
+      <section className="py-20 px-4 bg-white">
         <div className="max-w-4xl mx-auto">
-          <h2 className="display text-3xl md:text-5xl text-center mb-12">Quem trocou, contou.</h2>
+          <h2 className="text-3xl md:text-4xl font-extrabold text-center mb-12 text-gray-900">Quem trocou, contou.</h2>
           <div className="grid md:grid-cols-3 gap-6">
             {[
               { n: 'Carlos', c: 'São Paulo', t: 'Completei 80 figurinhas em duas semanas. Não comprei mais nenhum pacote.' },
               { n: 'Marina', c: 'Belo Horizonte', t: 'Achei o cromo do meu craque favorito em 10 minutos. Mora a 2 km de mim.' },
               { n: 'Ricardo', c: 'Curitiba', t: 'Família inteira completou o álbum trocando. Economizamos uns R$ 600.' },
             ].map((t) => (
-              <div key={t.n} className="bg-white rounded-2xl p-6 border border-ink-100 shadow-sm">
+              <div key={t.n} className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
                 <p className="text-gray-700 italic mb-4 leading-relaxed">"{t.t}"</p>
                 <div className="text-sm">
-                  <div className="font-semibold">{t.n}</div>
-                  <div className="text-gray-500 text-xs">{t.c}</div>
+                  <div className="font-semibold text-gray-900">{t.n}</div>
+                  <div className="text-gray-400 text-xs">{t.c}</div>
                 </div>
               </div>
             ))}
@@ -134,41 +141,14 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* SEGURANÇA */}
-      <section className="py-16 px-4 bg-ink-900 text-white">
-        <div className="max-w-6xl mx-auto">
-          <h2 className="display text-3xl md:text-4xl mb-3">Trocar com segurança.</h2>
-          <p className="text-white/70 mb-10 max-w-2xl">
-            Sistemas de confiança ativos desde o primeiro dia. Você troca, a gente protege.
-          </p>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {[
-              { t: 'Chat com antifraude', d: 'Detectamos padrões de golpe.' },
-              { t: 'Reputação verificada', d: 'Avaliação obrigatória após cada troca.' },
-              { t: 'Seguro de troca', d: 'Proteção para envios postais.' },
-              { t: 'Mediação 24/48h', d: 'Resolvemos disputas com evidências.' },
-            ].map((s) => (
-              <div key={s.t} className="bg-white/5 rounded-xl p-4 border border-white/10">
-                <div className="font-semibold mb-1">{s.t}</div>
-                <div className="text-sm text-white/70">{s.d}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* CTA FINAL */}
-      <section className="py-20 px-4 bg-brand-yellow">
+      <section className="py-20 px-4 bg-green-600">
         <div className="max-w-3xl mx-auto text-center">
-          <h2 className="display text-4xl md:text-6xl mb-4 text-ink-900">
-            Comece a trocar hoje.
-          </h2>
-          <p className="text-ink-900/80 text-lg mb-8">
-            Cadastro grátis. Sem cartão. Sem letra miúda.
-          </p>
+          <h2 className="text-4xl md:text-5xl font-extrabold mb-4 text-white">Comece a trocar hoje.</h2>
+          <p className="text-white/80 text-lg mb-8">Cadastro grátis. Sem cartão. Sem letra miúda.</p>
           <Link
             href="/signup"
-            className="inline-block bg-ink-900 text-white px-8 py-4 rounded-xl font-bold text-lg hover:bg-black shadow-stamp"
+            className="inline-block bg-white text-green-700 font-bold px-8 py-4 rounded-xl text-lg hover:bg-gray-50 shadow-sm transition-colors"
           >
             Criar conta grátis
           </Link>
@@ -177,14 +157,13 @@ export default async function HomePage() {
 
       <Disclaimer />
 
-      <footer className="bg-ink-900 text-gray-500 text-xs py-4 px-4">
+      <footer className="bg-gray-900 text-gray-500 text-xs py-4 px-4">
         <div className="max-w-6xl mx-auto flex flex-wrap gap-4 justify-between items-center">
-          <span>© 2026 TrocaCromos · Plataforma independente</span>
+          <span>© 2026 TrocaCopa · Plataforma independente</span>
           <div className="flex gap-4">
             <Link href="/termos" className="hover:text-white">Termos</Link>
             <Link href="/privacidade" className="hover:text-white">Privacidade</Link>
             <Link href="/anti-golpes" className="hover:text-white">Anti-golpes</Link>
-            <Link href="/anunciante" className="hover:text-white">Anuncie</Link>
           </div>
         </div>
       </footer>
