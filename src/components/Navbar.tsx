@@ -19,70 +19,103 @@ export function Navbar({ initialUser, initialProfile }: NavbarProps) {
   const [notifs, setNotifs] = useState(0);
   const [unreadMsgs, setUnreadMsgs] = useState(0);
 
+  async function fetchUnreadCount(u: User) {
+    const supabase = createClient();
+    // Find conversations user participates in
+    const { data: convs } = await supabase
+      .from('conversas')
+      .select('id')
+      .or(`participante_a.eq.${u.id},participante_b.eq.${u.id}`);
+    if (convs && convs.length > 0) {
+      const convIds = convs.map((c: any) => c.id);
+      const { count: msgCount } = await supabase
+        .from('mensagens')
+        .select('*', { count: 'exact', head: true })
+        .in('conversa_id', convIds)
+        .neq('remetente_id', u.id)
+        .is('lida_em', null);
+      setUnreadMsgs(msgCount ?? 0);
+    } else {
+      setUnreadMsgs(0);
+    }
+  }
+
   useEffect(() => {
     const supabase = createClient();
-    const fetchUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      setUser(user);
-      if (user) {
+    let channel: any = null;
+
+    const init = async (u: User) => {
+      setUser(u);
+
+      if (!initialProfile) {
         const { data } = await supabase
           .from('usuarios')
           .select('nome,foto_url,plano')
-          .eq('id', user.id)
+          .eq('id', u.id)
           .single();
         if (data) setProfile(data);
-
-        // Notificações gerais
-        const { count: notifCount } = await supabase
-          .from('notificacoes')
-          .select('*', { count: 'exact', head: true })
-          .eq('user_id', user.id)
-          .eq('lida', false);
-        setNotifs(notifCount ?? 0);
-
-        // Mensagens não lidas (onde o user é participante mas não remetente)
-        const { data: convs } = await supabase
-          .from('conversas')
-          .select('id')
-          .or(`participante_a.eq.${user.id},participante_b.eq.${user.id}`);
-        if (convs && convs.length > 0) {
-          const convIds = convs.map((c: any) => c.id);
-          const { count: msgCount } = await supabase
-            .from('mensagens')
-            .select('*', { count: 'exact', head: true })
-            .in('conversa_id', convIds)
-            .neq('remetente_id', user.id)
-            .is('lida_em', null);
-          setUnreadMsgs(msgCount ?? 0);
-        }
       }
+
+      // Notifications count
+      const { count: notifCount } = await supabase
+        .from('notificacoes')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', u.id)
+        .eq('lida', false);
+      setNotifs(notifCount ?? 0);
+
+      // Initial unread messages count
+      await fetchUnreadCount(u);
+
+      // Real-time: update badge when new messages arrive or are read
+      channel = supabase
+        .channel('navbar-msgs')
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'mensagens',
+        }, async (payload: any) => {
+          // Only increment if the new message is NOT from us
+          if (payload.new?.remetente_id !== u.id) {
+            setUnreadMsgs((prev) => prev + 1);
+          }
+        })
+        .on('postgres_changes', {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'mensagens',
+        }, async () => {
+          // Re-fetch count when messages are marked as read
+          await fetchUnreadCount(u);
+        })
+        .subscribe();
     };
-    if (!initialUser) fetchUser();
-    else if (initialUser) {
-      // Still fetch unread counts for logged-in users passed as props
-      (async () => {
-        const { data: convs } = await supabase
-          .from('conversas')
-          .select('id')
-          .or(`participante_a.eq.${initialUser.id},participante_b.eq.${initialUser.id}`);
-        if (convs && convs.length > 0) {
-          const convIds = convs.map((c: any) => c.id);
-          const { count: msgCount } = await supabase
-            .from('mensagens')
-            .select('*', { count: 'exact', head: true })
-            .in('conversa_id', convIds)
-            .neq('remetente_id', initialUser.id)
-            .is('lida_em', null);
-          setUnreadMsgs(msgCount ?? 0);
-        }
-      })();
+
+    const fetchUser = async () => {
+      const { data: { user: u } } = await supabase.auth.getUser();
+      if (u) await init(u);
+    };
+
+    if (initialUser) {
+      init(initialUser);
+    } else {
+      fetchUser();
     }
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      if (!session?.user) setProfile(null);
+      if (session?.user) {
+        init(session.user);
+      } else {
+        setUser(null);
+        setProfile(null);
+        setUnreadMsgs(0);
+      }
     });
-    return () => sub.subscription.unsubscribe();
+
+    return () => {
+      sub.subscription.unsubscribe();
+      if (channel) channel.unsubscribe();
+    };
   }, [initialUser]);
 
   async function signOut() {
