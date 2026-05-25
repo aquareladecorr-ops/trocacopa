@@ -51,7 +51,7 @@ export default function MatchesPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { setLoading(false); return; }
 
-      let query = supabase.rpc('encontrar_matches', {
+      let query = supabase.rpc('buscar_matches', {
         p_user_id: user.id,
         p_colecao_id: colecaoAtual!.id,
       });
