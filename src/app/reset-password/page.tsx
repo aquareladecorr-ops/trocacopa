@@ -12,17 +12,56 @@ export default function ResetPasswordPage() {
   const [erro, setErro] = useState('')
   const [sucesso, setSucesso] = useState(false)
   const [sessionReady, setSessionReady] = useState(false)
+  const [verificando, setVerificando] = useState(true)
   const router = useRouter()
 
   useEffect(() => {
-    // Supabase redireciona com tokens no hash da URL
-    // O cliente do Supabase processa automaticamente o hash
     const supabase = createClient()
-    supabase.auth.onAuthStateChange((event) => {
-      if (event === 'PASSWORD_RECOVERY') {
+
+    // O Supabase envia o link com tokens no hash da URL:
+    // /reset-password#access_token=xxx&refresh_token=yyy&type=recovery
+    // O cliente SSR do Supabase para Next.js App Router precisa que
+    // chamemos setSession manualmente com esses tokens.
+    const hash = window.location.hash
+    if (hash && hash.includes('access_token')) {
+      const params = new URLSearchParams(hash.substring(1))
+      const accessToken = params.get('access_token')
+      const refreshToken = params.get('refresh_token')
+      const type = params.get('type')
+
+      if (accessToken && refreshToken && type === 'recovery') {
+        supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        }).then(({ error }) => {
+          if (error) {
+            setErro('Link inválido ou expirado. Solicite um novo link de recuperação.')
+          } else {
+            setSessionReady(true)
+          }
+          setVerificando(false)
+        })
+        return
+      }
+    }
+
+    // Sem hash: verifica se já tem sessão ativa de recovery via onAuthStateChange
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY' || (event === 'SIGNED_IN' && session)) {
         setSessionReady(true)
+        setVerificando(false)
       }
     })
+
+    // Timeout: se após 3s não tiver sessão, mostra erro de link expirado
+    const timer = setTimeout(() => {
+      setVerificando(false)
+    }, 3000)
+
+    return () => {
+      subscription.unsubscribe()
+      clearTimeout(timer)
+    }
   }, [])
 
   async function handleSubmit(e: React.FormEvent) {
@@ -43,9 +82,11 @@ export default function ResetPasswordPage() {
     const { error } = await supabase.auth.updateUser({ password: senha })
 
     if (error) {
-      setErro('Erro ao redefinir senha. O link pode ter expirado. Solicite um novo.')
+      setErro('Erro ao redefinir senha. Tente solicitar um novo link.')
     } else {
       setSucesso(true)
+      // Limpa o hash da URL
+      window.history.replaceState(null, '', window.location.pathname)
       setTimeout(() => router.push('/painel'), 3000)
     }
     setLoading(false)
@@ -62,6 +103,35 @@ export default function ResetPasswordPage() {
           </p>
           <Link href="/painel" className="text-green-600 hover:underline text-sm">
             Ir para o painel agora
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
+  if (verificando) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <p className="text-gray-500">Verificando link...</p>
+      </div>
+    )
+  }
+
+  if (!sessionReady) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 px-4">
+        <div className="bg-white rounded-2xl shadow-lg p-8 border border-gray-100 w-full max-w-md text-center">
+          <div className="text-5xl mb-4">⚠️</div>
+          <h1 className="text-2xl font-bold mb-2">Link expirado</h1>
+          <p className="text-gray-600 mb-6">
+            Este link de recuperação é inválido ou já expirou.
+            Links de recuperação são válidos por 1 hora.
+          </p>
+          <Link
+            href="/recuperar-senha"
+            className="inline-block bg-green-600 text-white rounded-xl px-6 py-2.5 font-medium hover:bg-green-700 transition-colors"
+          >
+            Solicitar novo link
           </Link>
         </div>
       </div>
@@ -131,4 +201,4 @@ export default function ResetPasswordPage() {
       </div>
     </div>
   )
-}
+            }
