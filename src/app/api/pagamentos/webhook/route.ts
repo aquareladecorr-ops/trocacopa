@@ -3,60 +3,94 @@ import { createServiceClient } from '@/lib/supabase/server';
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
-  const accessToken = process.env.MERCADO_PAGO_ACCESS_TOKEN;
-  if (!accessToken) return NextResponse.json({ ok: true, demo: true });
+    const accessToken = process.env.MERCADO_PAGO_ACCESS_TOKEN;
+      if (!accessToken) return NextResponse.json({ ok: true, demo: true });
 
-  const paymentId = body?.data?.id || body?.id;
-  if (!paymentId) return NextResponse.json({ ok: false }, { status: 400 });
+        const supabase = createServiceClient();
 
-  try {
-    const res = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-    if (!res.ok) return NextResponse.json({ ok: false, error: 'mp api fail' }, { status: 502 });
-    const payment = await res.json();
+          try {
+              // Evento de assinatura recorrente (preapproval)
+                  if (body?.type === 'preapproval' || body?.action?.startsWith('preapproval')) {
+                        const subscriptionId = body?.data?.id || body?.id;
+                              if (!subscriptionId) return NextResponse.json({ ok: false }, { status: 400 });
 
-    const status = payment.status;
-    const externalRef = payment.external_reference;
-    if (!externalRef) return NextResponse.json({ ok: false, error: 'no ref' }, { status: 400 });
+                                    const res = await fetch(`https://api.mercadopago.com/preapproval/${subscriptionId}`, {
+                                            headers: { Authorization: `Bearer ${accessToken}` },
+                                                  });
+                                                        if (!res.ok) return NextResponse.json({ ok: false, error: 'mp api fail' }, { status: 502 });
+                                                              const subscription = await res.json();
 
-    const [userId, plano] = externalRef.split('::');
-    const supabase = createServiceClient();
+                                                                    const status = subscription.status;
+                                                                          const externalRef = subscription.external_reference;
+                                                                                if (!externalRef) return NextResponse.json({ ok: false, error: 'no ref' }, { status: 400 });
 
-    if (status === 'approved') {
-      await supabase
-        .from('usuarios')
-        .update({
-          plano,
-          plano_ate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-        })
-        .eq('id', userId);
+                                                                                      const [userId, plano] = externalRef.split('::');
 
-      await supabase
-        .from('pagamentos')
-        .update({ status: 'aprovado', gateway_id: String(paymentId) })
-        .eq('user_id', userId)
-        .eq('produto', plano)
-        .eq('status', 'pendente');
+                                                                                            if (status === 'authorized') {
+                                                                                                    // Assinatura ativa — ativa o plano e renova por 31 dias a partir de hoje
+                                                                                                            await supabase.from('usuarios').update({
+                                                                                                                      plano,
+                                                                                                                                plano_ate: new Date(Date.now() + 31 * 24 * 60 * 60 * 1000).toISOString(),
+                                                                                                                                          mp_subscription_id: subscriptionId,
+                                                                                                                                                  }).eq('id', userId);
 
-      await supabase.from('notificacoes').insert({
-        user_id: userId,
-        tipo: 'pagamento_aprovado',
-        titulo: 'Bem-vindo ao ' + plano.toUpperCase() + '! 🎉',
-        conteudo: 'Seu pagamento foi aprovado e seu plano já está ativo.',
-      });
-    } else if (status === 'rejected') {
-      await supabase
-        .from('pagamentos')
-        .update({ status: 'recusado' })
-        .eq('user_id', userId)
-        .eq('produto', plano)
-        .eq('status', 'pendente');
-    }
+                                                                                                                                                          await supabase.from('pagamentos')
+                                                                                                                                                                    .update({ status: 'aprovado', gateway_id: subscriptionId })
+                                                                                                                                                                              .eq('user_id', userId)
+                                                                                                                                                                                        .eq('produto', plano)
+                                                                                                                                                                                                  .eq('status', 'pendente');
 
-    return NextResponse.json({ ok: true });
-  } catch (e: any) {
-    console.error('webhook error', e);
-    return NextResponse.json({ ok: false, error: e.message }, { status: 500 });
-  }
-}
+                                                                                                                                                                                                        } else if (status === 'cancelled' || status === 'paused') {
+                                                                                                                                                                                                                // Assinatura cancelada ou pausada — rebaixa para free
+                                                                                                                                                                                                                        await supabase.from('usuarios').update({
+                                                                                                                                                                                                                                  plano: 'free',
+                                                                                                                                                                                                                                            plano_ate: null,
+                                                                                                                                                                                                                                                      mp_subscription_id: null,
+                                                                                                                                                                                                                                                              }).eq('id', userId);
+                                                                                                                                                                                                                                                                    }
+
+                                                                                                                                                                                                                                                                          return NextResponse.json({ ok: true });
+                                                                                                                                                                                                                                                                              }
+
+                                                                                                                                                                                                                                                                                  // Evento de pagamento avulso (retrocompatibilidade)
+                                                                                                                                                                                                                                                                                      const paymentId = body?.data?.id || body?.id;
+                                                                                                                                                                                                                                                                                          if (!paymentId) return NextResponse.json({ ok: false }, { status: 400 });
+
+                                                                                                                                                                                                                                                                                              const res = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
+                                                                                                                                                                                                                                                                                                    headers: { Authorization: `Bearer ${accessToken}` },
+                                                                                                                                                                                                                                                                                                        });
+                                                                                                                                                                                                                                                                                                            if (!res.ok) return NextResponse.json({ ok: false, error: 'mp api fail' }, { status: 502 });
+                                                                                                                                                                                                                                                                                                                const payment = await res.json();
+
+                                                                                                                                                                                                                                                                                                                    const status = payment.status;
+                                                                                                                                                                                                                                                                                                                        const externalRef = payment.external_reference;
+                                                                                                                                                                                                                                                                                                                            if (!externalRef) return NextResponse.json({ ok: false, error: 'no ref' }, { status: 400 });
+
+                                                                                                                                                                                                                                                                                                                                const [userId, plano] = externalRef.split('::');
+
+                                                                                                                                                                                                                                                                                                                                    if (status === 'approved') {
+                                                                                                                                                                                                                                                                                                                                          await supabase.from('usuarios').update({
+                                                                                                                                                                                                                                                                                                                                                  plano,
+                                                                                                                                                                                                                                                                                                                                                          plano_ate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+                                                                                                                                                                                                                                                                                                                                                                }).eq('id', userId);
+
+                                                                                                                                                                                                                                                                                                                                                                      await supabase.from('pagamentos')
+                                                                                                                                                                                                                                                                                                                                                                              .update({ status: 'aprovado', gateway_id: String(paymentId) })
+                                                                                                                                                                                                                                                                                                                                                                                      .eq('user_id', userId)
+                                                                                                                                                                                                                                                                                                                                                                                              .eq('produto', plano)
+                                                                                                                                                                                                                                                                                                                                                                                                      .eq('status', 'pendente');
+
+                                                                                                                                                                                                                                                                                                                                                                                                          } else if (status === 'rejected') {
+                                                                                                                                                                                                                                                                                                                                                                                                                await supabase.from('pagamentos')
+                                                                                                                                                                                                                                                                                                                                                                                                                        .update({ status: 'recusado' })
+                                                                                                                                                                                                                                                                                                                                                                                                                                .eq('user_id', userId)
+                                                                                                                                                                                                                                                                                                                                                                                                                                        .eq('produto', plano)
+                                                                                                                                                                                                                                                                                                                                                                                                                                                .eq('status', 'pendente');
+                                                                                                                                                                                                                                                                                                                                                                                                                                                    }
+
+                                                                                                                                                                                                                                                                                                                                                                                                                                                        return NextResponse.json({ ok: true });
+                                                                                                                                                                                                                                                                                                                                                                                                                                                          } catch (e: any) {
+                                                                                                                                                                                                                                                                                                                                                                                                                                                              console.error('webhook error', e);
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                  return NextResponse.json({ ok: false, error: e.message }, { status: 500 });
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                    }
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                    }
