@@ -1,78 +1,87 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
-const PRECOS: Record<string, { nome: string; valor: number }> = {
-  premium: { nome: 'Premium TrocaCromos', valor: 9.9 },
-  plus:    { nome: 'Plus TrocaCromos',    valor: 19.9 },
-};
+// Plano unico: Premium R$29,90/mes com cobranca automatica
+const PLANO = {
+  id: 'premium',
+    nome: 'Premium TrocaCopa',
+      valor: 29.9,
+      };
 
-export async function POST(req: NextRequest) {
-  const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.redirect(new URL('/login', req.url));
-  }
+      export async function POST(req: NextRequest) {
+        const supabase = createClient();
+          const { data: { user } } = await supabase.auth.getUser();
+            if (!user) {
+                return NextResponse.redirect(new URL('/login', req.url));
+                  }
 
-  const form = await req.formData();
-  const plano = String(form.get('plano') || '').toLowerCase();
-  const config = PRECOS[plano];
-  if (!config) {
-    return NextResponse.json({ error: 'Plano inválido' }, { status: 400 });
-  }
+                    const accessToken = process.env.MERCADO_PAGO_ACCESS_TOKEN;
+                      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.trocacopa.com';
 
-  const accessToken = process.env.MERCADO_PAGO_ACCESS_TOKEN;
-  if (!accessToken) {
-    // Modo demo: registra pagamento como pendente
-    await supabase.from('pagamentos').insert({
-      user_id: user.id,
-      produto: plano,
-      valor: config.valor,
-      status: 'pendente',
-      gateway: 'mercadopago_demo',
-    });
-    return NextResponse.redirect(new URL(`/premium?demo=1&plano=${plano}`, req.url));
-  }
+                        if (!accessToken) {
+                            // Modo demo: registra como pendente
+                                await supabase.from('pagamentos').insert({
+                                      user_id: user.id,
+                                            produto: PLANO.id,
+                                                  valor: PLANO.valor,
+                                                        status: 'pendente',
+                                                              gateway: 'mercadopago_demo',
+                                                                  });
+                                                                      return NextResponse.redirect(new URL('/premium?demo=1', req.url));
+                                                                        }
 
-  // Integração real
-  try {
-    const { MercadoPagoConfig, Preference } = await import('mercadopago');
-    const client = new MercadoPagoConfig({ accessToken });
-    const preference = new Preference(client);
+                                                                          // Criacao de assinatura recorrente via API Preapproval do Mercado Pago
+                                                                            try {
+                                                                                const body = {
+                                                                                      reason: PLANO.nome,
+                                                                                            auto_recurring: {
+                                                                                                    frequency: 1,
+                                                                                                            frequency_type: 'months',
+                                                                                                                    transaction_amount: PLANO.valor,
+                                                                                                                            currency_id: 'BRL',
+                                                                                                                                  },
+                                                                                                                                        payer_email: user.email,
+                                                                                                                                              back_url: `${baseUrl}/premium?status=success`,
+                                                                                                                                                    external_reference: `${user.id}::${PLANO.id}`,
+                                                                                                                                                          notification_url: `${baseUrl}/api/pagamentos/webhook`,
+                                                                                                                                                              };
 
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-    const pref = await preference.create({
-      body: {
-        items: [{
-          id: plano,
-          title: config.nome,
-          quantity: 1,
-          unit_price: config.valor,
-          currency_id: 'BRL',
-        }],
-        payer: { email: user.email! },
-        back_urls: {
-          success: `${baseUrl}/premium?status=success`,
-          failure: `${baseUrl}/premium?status=failure`,
-          pending: `${baseUrl}/premium?status=pending`,
-        },
-        auto_return: 'approved',
-        notification_url: `${baseUrl}/api/pagamentos/webhook`,
-        external_reference: `${user.id}::${plano}`,
-      },
-    });
+                                                                                                                                                                  const res = await fetch('https://api.mercadopago.com/preapproval', {
+                                                                                                                                                                        method: 'POST',
+                                                                                                                                                                              headers: {
+                                                                                                                                                                                      Authorization: `Bearer ${accessToken}`,
+                                                                                                                                                                                              'Content-Type': 'application/json',
+                                                                                                                                                                                                    },
+                                                                                                                                                                                                          body: JSON.stringify(body),
+                                                                                                                                                                                                              });
 
-    await supabase.from('pagamentos').insert({
-      user_id: user.id,
-      produto: plano,
-      valor: config.valor,
-      status: 'pendente',
-      gateway: 'mercadopago',
-      gateway_id: pref.id,
-    });
+                                                                                                                                                                                                                  if (!res.ok) {
+                                                                                                                                                                                                                        const err = await res.json();
+                                                                                                                                                                                                                              console.error('MP Preapproval error:', err);
+                                                                                                                                                                                                                                    return NextResponse.json({ error: 'Erro ao criar assinatura' }, { status: 500 });
+                                                                                                                                                                                                                                        }
 
-    return NextResponse.redirect(pref.init_point!, 303);
-  } catch (e: any) {
-    console.error('MP error', e);
-    return NextResponse.json({ error: e.message }, { status: 500 });
-  }
-}
+                                                                                                                                                                                                                                            const data = await res.json();
+
+                                                                                                                                                                                                                                                // Registra assinatura pendente no banco
+                                                                                                                                                                                                                                                    await supabase.from('pagamentos').insert({
+                                                                                                                                                                                                                                                          user_id: user.id,
+                                                                                                                                                                                                                                                                produto: PLANO.id,
+                                                                                                                                                                                                                                                                      valor: PLANO.valor,
+                                                                                                                                                                                                                                                                            status: 'pendente',
+                                                                                                                                                                                                                                                                                  gateway: 'mercadopago',
+                                                                                                                                                                                                                                                                                        gateway_id: data.id,
+                                                                                                                                                                                                                                                                                            });
+
+                                                                                                                                                                                                                                                                                                // Salva o ID da assinatura no perfil do usuario
+                                                                                                                                                                                                                                                                                                    await supabase.from('usuarios').update({
+                                                                                                                                                                                                                                                                                                          mp_subscription_id: data.id,
+                                                                                                                                                                                                                                                                                                              }).eq('id', user.id);
+
+                                                                                                                                                                                                                                                                                                                  // Redireciona para a pagina de pagamento do MP
+                                                                                                                                                                                                                                                                                                                      return NextResponse.redirect(data.init_point, 303);
+                                                                                                                                                                                                                                                                                                                        } catch (e: any) {
+                                                                                                                                                                                                                                                                                                                            console.error('Checkout error:', e);
+                                                                                                                                                                                                                                                                                                                                return NextResponse.json({ error: e.message }, { status: 500 });
+                                                                                                                                                                                                                                                                                                                                  }
+                                                                                                                                                                                                                                                                                                                                  }
