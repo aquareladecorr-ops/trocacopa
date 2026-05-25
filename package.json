@@ -14,6 +14,7 @@
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.45.4",
     "clsx": "^2.1.1",
+    "leaflet": "^1.9.4",
     "lucide-react": "^0.451.0",
     "mercadopago": "^2.0.15",
     "next": "14.2.15",
@@ -23,6 +24,7 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@types/leaflet": "^1.9.14",
     "@types/node": "^22.7.5",
     "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.0",
