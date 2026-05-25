@@ -224,3 +224,53 @@ id, participante_a, participante_b, acordo_id, ultima_msg_em, arquivada, criado_
 - Chat funciona: envio ✅, recepção em tempo real ✅, avatares ✅
 - Ícone de chat na navbar ✅
 - Aba "Conversas" no painel ✅
+
+
+## Sessão 9 — Chat dois usuários: envio e recepção bidirecional
+
+### Problema relatado
+"uma pessoa envia mensagem mas a outra não recebe a mensagem no icone chat e não consegue responder"
+
+### Diagnóstico
+1. RLS policies: corretas (SELECT e INSERT para participantes)
+2. Realtime publication: mensagens e conversas ambas em supabase_realtime ✅
+3. **Problema principal**: REPLICA IDENTITY = 'd' (default) → apenas PK no WAL → filtros por coluna no Realtime não funcionavam para o usuário receptor
+4. Sem política UPDATE em mensagens → lida_em não podia ser atualizado → badge nunca diminuía
+5. conversas/page.tsx era Server Component → não atualizava em tempo real quando outra pessoa enviava mensagem
+
+### Correções SQL (via Supabase SQL Editor)
+```sql
+-- Adiciona UPDATE policy para mensagens (necessário para lida_em)
+CREATE POLICY mensagens_update_participante ON mensagens
+FOR UPDATE TO public
+USING (EXISTS (SELECT 1 FROM conversas c WHERE c.id = mensagens.conversa_id AND (c.participante_a = auth.uid() OR c.participante_b = auth.uid())))
+WITH CHECK (...mesmo...);
+
+-- REPLICA IDENTITY FULL para Realtime funcionar com filtros de coluna
+ALTER TABLE mensagens REPLICA IDENTITY FULL;
+ALTER TABLE conversas REPLICA IDENTITY FULL;
+```
+
+### Correções de código
+
+**Commit `3170717`** — `src/app/conversas/page.tsx`
+- Convertido de Server Component para Client Component ('use client')
+- Subscribes ao canal Realtime de mensagens (INSERT)
+- Recarrega lista de conversas + contagem de não lidas automaticamente quando nova mensagem chega
+- Mostra badge de não lidas por conversa (verde, com contador)
+
+**Commit `04fe492`** — `src/components/Navbar.tsx`
+- Subscribe ao Realtime (INSERT em mensagens) → incrementa badge ao vivo
+- Subscribe ao Realtime (UPDATE em mensagens) → re-conta quando marcadas como lidas
+- Badge do ícone chat atualiza sem recarregar a página
+
+### Teste confirmado
+- Mensagem inserida como joseluizlobojunior → apareceu instantaneamente no lado ESQUERDO (branca) no chat de jose ✅
+- Conversas list atualiza preview e timestamp em tempo real ✅
+- Build Vercel ✅ (FtrasPFBU, commit 04fe492)
+
+### IDs dos usuários
+- jose: 66fe4fa0-c7f5-4b8c-826f-ec1a136f1e8b
+- joseluizlobojunior: a9cea554-a0bd-4f3b-b25d-6d6f35ef8cfa  ← ID correto
+- BANCA NET: b8543748-eb8b-42c2-b161-a0772f49e12e
+- Conversa teste: a2fa706a-9211-4100-808f-5a33a4099d60
