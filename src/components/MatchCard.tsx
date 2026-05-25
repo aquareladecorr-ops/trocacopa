@@ -1,7 +1,10 @@
 'use client';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Avatar, Badge } from './ui/Card';
 import { Button } from './ui/Button';
+import { createClient } from '@/lib/supabase/client';
 import type { MatchRow } from '@/lib/types';
 
 interface MatchCardProps {
@@ -10,6 +13,46 @@ interface MatchCardProps {
 }
 
 export function MatchCard({ match, onPropose }: MatchCardProps) {
+  const [loadingChat, setLoadingChat] = useState(false);
+  const router = useRouter();
+
+  async function abrirConversa() {
+    setLoadingChat(true);
+    try {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { router.push('/login'); return; }
+
+      // Verifica se já existe conversa entre os dois usuários
+      const { data: existente } = await supabase
+        .from('conversas')
+        .select('id')
+        .or(`and(participante_a.eq.${user.id},participante_b.eq.${match.user_b_id}),and(participante_a.eq.${match.user_b_id},participante_b.eq.${user.id})`)
+        .maybeSingle();
+
+      if (existente) {
+        router.push(`/conversas/${existente.id}`);
+        return;
+      }
+
+      // Cria nova conversa
+      const { data: nova, error } = await supabase
+        .from('conversas')
+        .insert({ participante_a: user.id, participante_b: match.user_b_id })
+        .select('id')
+        .single();
+
+      if (error || !nova) {
+        console.error('Erro ao criar conversa:', error);
+        return;
+      }
+
+      router.push(`/conversas/${nova.id}`);
+    } finally {
+      setLoadingChat(false);
+    }
+  }
+
   return (
     <div className="bg-white rounded-2xl border border-ink-100 shadow-sm overflow-hidden hover:shadow-md transition-shadow">
       <div className="p-5">
@@ -32,7 +75,7 @@ export function MatchCard({ match, onPropose }: MatchCardProps) {
               {match.user_b_cidade}, {match.user_b_estado}
             </div>
             <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
-              <span>⭐ {match.user_b_reputacao?.toFixed(1) || '—'}</span>
+              <span>⭐ {match.user_b_reputacao?.toFixed(1) || '–'}</span>
             </div>
           </div>
           <div className="text-right">
@@ -62,10 +105,18 @@ export function MatchCard({ match, onPropose }: MatchCardProps) {
         <Button onClick={() => onPropose(match)} className="flex-1">
           Propor troca
         </Button>
+        <Button
+          onClick={abrirConversa}
+          variant="secondary"
+          className="flex-1"
+          loading={loadingChat}
+        >
+          💬 Conversar
+        </Button>
         <Link href={`/perfil/${match.user_b_id}`}>
           <Button variant="secondary">Ver perfil</Button>
         </Link>
       </div>
     </div>
   );
-}
+              }
