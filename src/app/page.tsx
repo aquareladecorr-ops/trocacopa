@@ -68,6 +68,10 @@ export default function HomePage() {
             <div className="inline-flex items-center gap-2 bg-yellow-400 text-gray-900 text-xs font-bold px-3 py-1.5 rounded-full mb-6">
               <span>✦</span> Comunidade brasileira de colecionadores
             </div>
+            <p className="text-2xl md:text-3xl font-extrabold uppercase tracking-tight text-gray-900 mb-4 leading-tight">
+              TROQUE FIGURINHAS COM QUEM ESTÁ<br />
+              <span className="text-green-600">PERTO DE VOCÊ.</span>
+            </p>
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-gray-900 leading-tight mb-6">
               Pare de gastar com pacotes.{' '}
               <span className="text-green-600">Troque com quem tem o que falta.</span>
