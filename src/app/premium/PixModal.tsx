@@ -17,7 +17,7 @@ export default function PixModal({ onClose, onPaid }: Props) {
     }, []);
     const checkStatus = useCallback(async () => {
           if (!pix) return;
-          const r = await fetch(`/api/pagamentos/status?payment_id=${pix.payment_id}`).then(x => x.json()).catch(() => ({}));
+              const r = await fetch('/api/pagamentos/status?payment_id=' + pix.payment_id).then(x => x.json()).catch(() => ({}));
           if (r.status === 'approved') { setPolling(false); onPaid(); }
     }, [pix, onPaid]);
     useEffect(() => {
