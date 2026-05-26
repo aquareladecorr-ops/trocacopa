@@ -1,8 +1,9 @@
-—import Link from 'next/link';
+import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { Navbar } from '@/components/Navbar';
 import { Disclaimer } from '@/components/Disclaimer';
 
+import PremiumButtons from './PremiumButtons';
 const FEATURES = [
   'Propostas ilimitadas',
     'Matches ilimitados',
